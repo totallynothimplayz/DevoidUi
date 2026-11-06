@@ -1,7 +1,5 @@
 # DevoidUi
-DevoidUi. A Customizable UI To Your Desires.
-
-DevoidUi
+A Customizable UI To Your Desires.
 A sleek, modern, and lightweight Roblox Luau UI library featuring smooth animations, multiple layout modes, built-in search, and cross-platform support (Desktop & Mobile).
 Features
  * Multiple Layout Modes: Switch between Wide (Desktop sidebar layout) and Compact (Mobile/Navbar layout).
