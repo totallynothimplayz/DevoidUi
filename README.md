@@ -20,14 +20,14 @@ A sleek, modern, and lightweight Roblox Luau UI library featuring smooth animati
 
 ### Via loadstring (Exploit Environments)
 ```lua
-local Library = loadstring(readfile("DevoidUi.lua"))()
+local Library = loadstring(game:HttpGet("[https://raw.githubusercontent.com/totallynothimplayz/DevoidUi/refs/heads/main/DevoidUI.lua](https://raw.githubusercontent.com/totallynothimplayz/DevoidUi/refs/heads/main/DevoidUI.lua)"))()
 
 Via ModuleScript
 Place DevoidUi inside a ModuleScript in your project and require it:
 local Library = require(script.DevoidUi)
 
 Quick Start Guide
-local Library = loadstring(readfile("DevoidUi.lua"))()
+local Library = loadstring(game:HttpGet("[https://raw.githubusercontent.com/totallynothimplayz/DevoidUi/refs/heads/main/DevoidUI.lua](https://raw.githubusercontent.com/totallynothimplayz/DevoidUi/refs/heads/main/DevoidUI.lua)"))()
 
 local Window = Library.new({
     Name = "Nexus Hub",
@@ -37,9 +37,9 @@ local Window = Library.new({
     StatusPosition = "BottomLeft",
     ToggleKey = Enum.KeyCode.RightShift,
     IsPremium = true,
-    ToggleIcon = "rbxassetid://6031068421", -- Optional: Image or text for mobile toggle
+    ToggleIcon = "rbxassetid://6031068421",
     Theme = {
-        Accent = Color3.fromHex("#7AA2F7"), -- Optional: Custom accent color
+        Accent = Color3.fromHex("#7AA2F7"),
     }
 })
 
