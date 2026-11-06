@@ -1,15 +1,24 @@
-# DevoidUi
-A Customizable UI To Your Desires.
+# DevoidUI
+
 A sleek, modern, and lightweight Roblox Luau UI library featuring smooth animations, multiple layout modes, built-in search, and cross-platform support (Desktop & Mobile).
-Features
- * Multiple Layout Modes: Switch between Wide (Desktop sidebar layout) and Compact (Mobile/Navbar layout).
- * Display Modes: Supports Normal (full window), Toast (feature pills), and Hidden.
- * Built-in Search Palette: Quickly find features using the search bar or Ctrl + K.
- * Customizable Status & Indicators: Configure custom status labels and alignment positions.
- * Config Management: Easily save and load user configurations to/from .json files.
- * Cross-Platform Accessibility: Fully responsive with touch support and a floating accessibility toggle button.
-Installation
-Via loadstring (Exploit Environments)
+
+---
+
+## Features
+
+* **Multiple Layout Modes:** Switch seamlessly between Wide (Desktop sidebar layout) and Compact (Mobile/Navbar layout).
+* **Display Modes:** Supports Normal (full window), Toast (feature pills), and Hidden states.
+* **Built-in Search Palette:** Quickly find features using the search bar or `Ctrl + K`.
+* **Customizable Status & Indicators:** Configure custom status labels and alignment positions.
+* **Config Management:** Easily save and load user configurations to and from `.json` files.
+* **Cross-Platform Accessibility:** Fully responsive with touch support and a floating accessibility toggle button.
+
+---
+
+## Installation
+
+### Via loadstring (Exploit Environments)
+```lua
 local Library = loadstring(readfile("TzarUI.lua"))()
 
 Via ModuleScript
@@ -19,22 +28,19 @@ local Library = require(script.TzarUI)
 Quick Start Guide
 local Library = loadstring(readfile("TzarUI.lua"))()
 
--- Initialize the Window
 local Window = Library.new({
     Name = "Nexus Hub",
     Version = "2.5",
     Badge = "PRO",
     Status = "SAFE",
-    StatusPosition = "BottomLeft", -- Options: "BottomLeft", "BottomRight", "TopLeft", "TopRight"
+    StatusPosition = "BottomLeft",
     ToggleKey = Enum.KeyCode.RightShift,
     IsPremium = true,
 })
 
--- Create a Page and Tab
 local CombatPage = Window:AddPage({ Name = "Combat", Group = "Main" })
 local AimbotTab = CombatPage:AddTab("Aimbot")
 
--- Add a Toggle
 AimbotTab:AddToggle({
     Name = "Enable Aimbot",
     Desc = "Automatically lock onto targets.",
@@ -45,7 +51,6 @@ AimbotTab:AddToggle({
     end,
 })
 
--- Add a Slider
 AimbotTab:AddSlider({
     Name = "Field of View",
     Min = 30,
@@ -71,21 +76,22 @@ Initializes the main window.
 | ToggleKey | Enum.KeyCode | RightShift | Keyboard key to show/hide the UI. |
 | IsPremium | boolean | false | Unlocks premium-restricted controls. |
 Page & Tab Methods
-Window:AddPage(opts)
-Creates a new page in the sidebar or menu list.
- * opts.Name: String name of the page.
- * opts.Group: Category group header (default: "GAME").
-Page:AddTab(name)
-Creates a sub-tab strip at the top of the content area.
+ * Window:AddPage(opts)
+   * Creates a new page in the sidebar or menu list.
+   * opts.Name: String name of the page.
+   * opts.Group: Category group header (default: "GAME").
+ * Page:AddTab(name)
+   * Creates a sub-tab strip at the top of the content area.
 Control Elements
 1. Toggle
 Tab:AddToggle({
     Name = "Feature Name",
     Desc = "Description text",
     Default = false,
-    Key = Enum.KeyCode.E, -- Optional shortcut
-    Premium = false,      -- Locks if IsPremium is false
-    Callback = function(state) end,
+    Key = Enum.KeyCode.E,
+    Premium = false,
+    Callback = function(state)
+    end,
 })
 
 2. Slider
@@ -97,7 +103,8 @@ Tab:AddSlider({
     Increment = 1,
     Default = 50,
     Suffix = "studs",
-    Callback = function(value) end,
+    Callback = function(value)
+    end,
 })
 
 3. Dropdown
@@ -105,7 +112,8 @@ Tab:AddDropdown({
     Name = "Dropdown Name",
     Options = {"Option 1", "Option 2"},
     Default = "Option 1",
-    Callback = function(selected) end,
+    Callback = function(selected)
+    end,
 })
 
 4. Segmented Selector
@@ -113,36 +121,37 @@ Tab:AddSegmented({
     Name = "Mode Selector",
     Options = {"Auto", "Manual"},
     Default = "Auto",
-    Callback = function(selected) end,
+    Callback = function(selected)
+    end,
 })
 
 5. Keybind
 Tab:AddKeybind({
     Name = "Bind Name",
     Default = Enum.KeyCode.F,
-    Changed = function(newKey) end,
+    Changed = function(newKey)
+    end,
 })
 
 6. Action / Button
 Tab:AddAction({
     Name = "Action Name",
     ButtonText = "Execute",
-    Callback = function() end,
+    Callback = function()
+    end,
 })
 
 Notifications
 Send slide-in status notifications from anywhere:
 Window:Notify({
-    Type = "success", -- Options: "info", "success", "warning", "error"
+    Type = "success",
     Title = "Success",
     Text = "Action performed successfully!",
-    Duration = 4,     -- Time in seconds before closing
+    Duration = 4,
 })
 
+Note: Available types include "info", "success", "warning", and "error".
 Configuration Management
--- Save settings to file
+Save and load user settings easily:
 Window:SaveConfig("config_name")
-
--- Load settings from file
 Window:LoadConfigFile("config_name")
-
