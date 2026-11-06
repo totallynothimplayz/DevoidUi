@@ -1,4 +1,4 @@
-local Library = loadstring(readfile("DevoidUi.lua"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/totallynothimplayz/DevoidUi/refs/heads/main/DevoidUI.lua"))()
 
 local Window = Library.new({
 	Name = "Nexus Hub",
@@ -8,11 +8,11 @@ local Window = Library.new({
 	StatusPosition = "BottomLeft",
 	ToggleKey = Enum.KeyCode.RightShift,
 	IsPremium = true,
-	ToggleIcon = "rbxassetid://6031068421", -- Custom image or text for mobile float toggle
+	ToggleIcon = "rbxassetid://6031068421",
 	Theme = {
 		Bg = Color3.fromHex("#0B0B10"),
 		Panel = Color3.fromHex("#12121A"),
-		Accent = Color3.fromHex("#7AA2F7"), -- Custom accent color override
+		Accent = Color3.fromHex("#7AA2F7"),
 		Text = Color3.fromHex("#C0CAF5"),
 	},
 })
@@ -21,7 +21,6 @@ local CombatPage = Window:AddPage({ Name = "Combat", Group = "Main" })
 local MainTab = CombatPage:AddTab("Main")
 local VisualsTab = CombatPage:AddTab("Visuals")
 
--- Sections & Labels
 MainTab:AddSection("Aimbot Settings")
 
 MainTab:AddParagraph({
@@ -29,7 +28,6 @@ MainTab:AddParagraph({
 	Content = "Adjust your combat configurations below. All settings auto-save to JSON.",
 })
 
--- Toggles & Sliders
 MainTab:AddToggle({
 	Name = "Enable Aimbot",
 	Desc = "Automatically lock onto targets.",
@@ -53,7 +51,6 @@ MainTab:AddSlider({
 	end,
 })
 
--- Inputs, Dropdowns & Keybinds
 MainTab:AddInput({
 	Name = "Target User",
 	Desc = "Filter targeted player by username.",
@@ -95,7 +92,6 @@ MainTab:AddKeybind({
 MainTab:AddDivider()
 MainTab:AddSpace(5)
 
--- Colorpicker, Progress Bar & Actions
 VisualsTab:AddSection("Visual Customization")
 
 VisualsTab:AddColorpicker({
