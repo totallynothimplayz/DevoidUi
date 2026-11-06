@@ -1,5 +1,5 @@
 --[[
-	TzarUI  -  Roblox Luau UI library
+	DevoidUI  -  Roblox Luau UI library
 	Modes:   "Normal" (full hub window)  |  "Toast" (feature pills)  |  "Hidden"
 	Layouts: "Wide" (sidebar, desktop)   |  "Compact" (navbar, auto on mobile)
 ]]
