@@ -1,7 +1,6 @@
 --[[
-	DevoidUI  -  Roblox Luau UI library
-	Modes:   "Normal" (full hub window)  |  "Toast" (feature pills)  |  "Hidden"
-	Layouts: "Wide" (sidebar, desktop)   |  "Compact" (navbar, auto on mobile)
+	DevoidUi - Roblox Luau UI library
+	Updated with full component support, customizable themes, and mobile toggle icon options.
 ]]
 
 local Players = game:GetService("Players")
@@ -17,9 +16,9 @@ Page.__index = Page
 Tab.__index = Tab
 
 ----------------------------------------------------------------------
--- Theme & helpers
+-- Default Theme & helpers
 ----------------------------------------------------------------------
-local Theme = {
+local DefaultTheme = {
 	Bg = Color3.fromHex("#0B0B0B"),
 	Panel = Color3.fromHex("#121212"),
 	Raised = Color3.fromHex("#1A1A1A"),
@@ -40,7 +39,6 @@ local Theme = {
 	Black = Enum.Font.GothamBlack,
 	Mono = Enum.Font.RobotoMono,
 }
-Library.Theme = Theme
 
 local X, Y = Enum.AutomaticSize.X, Enum.AutomaticSize.Y
 local LEFT, RIGHT, CENTER = Enum.HorizontalAlignment.Left, Enum.HorizontalAlignment.Right, Enum.HorizontalAlignment.Center
@@ -48,7 +46,7 @@ local HORIZ, VERT = Enum.FillDirection.Horizontal, Enum.FillDirection.Vertical
 local VCENTER = Enum.VerticalAlignment.Center
 local ACCENT_DOT = '<font color="#E8333F">.</font>'
 
-local NotifyColors = { info = Theme.Blue, success = Theme.Green, warning = Theme.Yellow, error = Theme.Accent }
+local NotifyColors = {}
 local KEYS = { LeftShift = "LShift", RightShift = "RShift", LeftControl = "LCtrl", RightControl = "RCtrl", LeftAlt = "LAlt", RightAlt = "RAlt", Return = "Enter", Backspace = "Bksp" }
 
 local function keyText(k)
@@ -73,8 +71,8 @@ local function new(class, props, children)
 	if o:IsA("GuiButton") then o.AutoButtonColor = false end
 	if o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox") then
 		o.Text = ""
-		o.Font = Theme.Sans
-		o.TextColor3 = Theme.Text
+		o.Font = Enum.Font.GothamMedium
+		o.TextColor3 = Color3.new(1, 1, 1)
 		o.TextSize = 14
 	end
 	local parent
@@ -94,7 +92,7 @@ end
 
 local function corner(r) return new("UICorner", { CornerRadius = UDim.new(0, r) }) end
 local function stroke(c, t)
-	return new("UIStroke", { Color = c or Theme.Stroke, Thickness = t or 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
+	return new("UIStroke", { Color = c, Thickness = t or 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
 end
 local function pad(l, t, r, b)
 	return new("UIPadding", {
@@ -115,13 +113,13 @@ local function hover(btn, target, normal, over)
 	btn.MouseLeave:Connect(function() tween(target, 0.15, { BackgroundColor3 = normal }) end)
 end
 
-local function iconButton(parent, glyph, order)
+local function iconButton(parent, glyph, order, theme)
 	local b = new("TextButton", {
-		LayoutOrder = order, Size = UDim2.fromOffset(32, 32), BackgroundColor3 = Theme.Raised, BackgroundTransparency = 0,
-		Text = glyph, TextSize = 16, TextColor3 = Theme.Muted, Parent = parent,
+		LayoutOrder = order, Size = UDim2.fromOffset(32, 32), BackgroundColor3 = theme.Raised, BackgroundTransparency = 0,
+		Text = glyph, TextSize = 16, TextColor3 = theme.Muted, Parent = parent,
 	}, { corner(8) })
-	b.MouseEnter:Connect(function() tween(b, 0.15, { BackgroundColor3 = Theme.Hover, TextColor3 = Theme.Text }) end)
-	b.MouseLeave:Connect(function() tween(b, 0.15, { BackgroundColor3 = Theme.Raised, TextColor3 = Theme.Muted }) end)
+	b.MouseEnter:Connect(function() tween(b, 0.15, { BackgroundColor3 = theme.Hover, TextColor3 = theme.Text }) end)
+	b.MouseLeave:Connect(function() tween(b, 0.15, { BackgroundColor3 = theme.Raised, TextColor3 = theme.Muted }) end)
 	return b
 end
 
@@ -147,15 +145,26 @@ function Library.new(opts)
 	self.Version = opts.Version or "V1.0"
 	self.Badge = opts.Badge
 	self.Status = opts.Status or "SAFE"
-	self.StatusColor = opts.StatusColor or Theme.Green
-	self.StatusPosition = opts.StatusPosition or "BottomLeft" -- Options: "BottomLeft", "BottomRight", "TopLeft", "TopRight"
+	self.StatusColor = opts.StatusColor or DefaultTheme.Green
+	self.StatusPosition = opts.StatusPosition or "BottomLeft"
 	self.Logo = opts.Logo
 	self.Avatar = opts.Avatar
 	self.ToggleKey = opts.ToggleKey or Enum.KeyCode.RightShift
 	self.IsPremium = opts.IsPremium or false
 	self.IsTouch = UIS.TouchEnabled and not UIS.KeyboardEnabled
 	self.Layout = opts.Layout or (self.IsTouch and "Compact" or "Wide")
+	self.ToggleIcon = opts.ToggleIcon -- Can be text or asset image string (e.g. "rbxassetid://...")
 	self.Mode = "Hidden"
+
+	-- Setup Theme customization
+	self.Theme = table.clone(DefaultTheme)
+	if opts.Theme then
+		for k, v in pairs(opts.Theme) do
+			self.Theme[k] = v
+		end
+	end
+	NotifyColors = { info = self.Theme.Blue, success = self.Theme.Green, warning = self.Theme.Yellow, error = self.Theme.Accent }
+
 	self.Flags, self.Objects, self.Pages, self.Binds, self.Features, self.Index, self._conns = {}, {}, {}, {}, {}, {}, {}
 	self._groups, self._groupCount, self._notifOrder, self._winToken = {}, 0, 0, 0
 	self.UI = {}
@@ -168,8 +177,9 @@ end
 
 function Library:_build(opts)
 	local ui = self.UI
+	local theme = self.Theme
 	local gui = new("ScreenGui", {
-		Name = "TzarUI_" .. math.random(1000, 9999), ResetOnSpawn = false, IgnoreGuiInset = true,
+		Name = "DevoidUi_" .. math.random(1000, 9999), ResetOnSpawn = false, IgnoreGuiInset = true,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 999,
 	})
 	protect(gui)
@@ -181,8 +191,8 @@ function Library:_build(opts)
 	})
 	local win = new("CanvasGroup", {
 		AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(720, 460),
-		BackgroundColor3 = Theme.Bg, Parent = ui.Holder,
-	}, { corner(14), stroke(Theme.Stroke) })
+		BackgroundColor3 = theme.Bg, Parent = ui.Holder,
+	}, { corner(14), stroke(theme.Stroke) })
 	ui.Win = win
 	ui.WinScale = new("UIScale", { Parent = win })
 	ui.Anim = Instance.new("NumberValue")
@@ -190,10 +200,10 @@ function Library:_build(opts)
 	ui.Anim.Changed:Connect(function() self:_applyScale() end)
 	self._base = 1
 
-	-- Top bar ---------------------------------------------------------
+	-- Top bar
 	ui.Top = new("Frame", {
-		Position = UDim2.fromOffset(12, 12), Size = UDim2.new(1, -24, 0, 48), BackgroundColor3 = Theme.Panel, Parent = win,
-	}, { corner(12), stroke() })
+		Position = UDim2.fromOffset(12, 12), Size = UDim2.new(1, -24, 0, 48), BackgroundColor3 = theme.Panel, Parent = win,
+	}, { corner(12), stroke(theme.Stroke) })
 
 	local left = new("Frame", {
 		Size = UDim2.new(0, 0, 1, 0), AutomaticSize = X, BackgroundTransparency = 1, Parent = ui.Top,
@@ -202,19 +212,19 @@ function Library:_build(opts)
 	if self.Logo then
 		new("ImageLabel", { LayoutOrder = 1, Size = UDim2.fromOffset(22, 22), Image = self.Logo, Parent = left })
 	else
-		new("TextLabel", { LayoutOrder = 1, Size = UDim2.fromOffset(18, 22), Text = "T", Font = Theme.Black, TextSize = 22, TextColor3 = Theme.Accent, Parent = left })
+		new("TextLabel", { LayoutOrder = 1, Size = UDim2.fromOffset(18, 22), Text = "D", Font = theme.Black, TextSize = 22, TextColor3 = theme.Accent, Parent = left })
 	end
-	new("TextLabel", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 20), AutomaticSize = X, Text = self.Name, Font = Theme.Bold, TextSize = 15, Parent = left })
+	new("TextLabel", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 20), AutomaticSize = X, Text = self.Name, Font = theme.Bold, TextSize = 15, TextColor3 = theme.Text, Parent = left })
 	ui.Version = new("TextLabel", {
 		LayoutOrder = 3, Size = UDim2.fromOffset(0, 12), AutomaticSize = X, Text = "HUB " .. self.Version,
-		Font = Theme.Mono, TextSize = 10, TextColor3 = Theme.Dim, Parent = left,
+		Font = theme.Mono, TextSize = 10, TextColor3 = theme.Dim, Parent = left,
 	})
 	if self.Badge then
 		ui.BadgePill = new("Frame", {
-			LayoutOrder = 4, Size = UDim2.fromOffset(0, 22), AutomaticSize = X, BackgroundColor3 = Theme.Raised, Parent = left,
+			LayoutOrder = 4, Size = UDim2.fromOffset(0, 22), AutomaticSize = X, BackgroundColor3 = theme.Raised, Parent = left,
 		}, { corner(11), pad(9, 0, 10, 0), list(HORIZ, 6, LEFT, VCENTER) })
-		new("Frame", { LayoutOrder = 1, Size = UDim2.fromOffset(6, 6), BackgroundColor3 = Theme.Green, Parent = ui.BadgePill }, { corner(3) })
-		new("TextLabel", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 14), AutomaticSize = X, Text = self.Badge, TextSize = 11, Parent = ui.BadgePill })
+		new("Frame", { LayoutOrder = 1, Size = UDim2.fromOffset(6, 6), BackgroundColor3 = theme.Green, Parent = ui.BadgePill }, { corner(3) })
+		new("TextLabel", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 14), AutomaticSize = X, Text = self.Badge, TextSize = 11, TextColor3 = theme.Text, Parent = ui.BadgePill })
 	end
 
 	-- wide right side
@@ -223,16 +233,16 @@ function Library:_build(opts)
 		AutomaticSize = X, BackgroundTransparency = 1, Parent = ui.Top,
 	}, { list(HORIZ, 8, RIGHT, VCENTER) })
 	ui.SearchBtn = new("TextButton", {
-		LayoutOrder = 1, Size = UDim2.fromOffset(190, 32), BackgroundColor3 = Theme.Raised, BackgroundTransparency = 0, Parent = ui.RightWide,
-	}, { corner(8), stroke() })
-	new("TextLabel", { Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -80, 1, 0), Text = "Search features", TextSize = 12, TextColor3 = Theme.Muted, TextXAlignment = LEFT, Parent = ui.SearchBtn })
+		LayoutOrder = 1, Size = UDim2.fromOffset(190, 32), BackgroundColor3 = theme.Raised, BackgroundTransparency = 0, Parent = ui.RightWide,
+	}, { corner(8), stroke(theme.Stroke) })
+	new("TextLabel", { Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -80, 1, 0), Text = "Search features", TextSize = 12, TextColor3 = theme.Muted, TextXAlignment = LEFT, Parent = ui.SearchBtn })
 	new("TextLabel", {
 		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -6, 0.5, 0), Size = UDim2.fromOffset(0, 20), AutomaticSize = X,
-		BackgroundTransparency = 0, BackgroundColor3 = Theme.Bg, Text = "Ctrl K", Font = Theme.Mono, TextSize = 10, TextColor3 = Theme.Muted, Parent = ui.SearchBtn,
-	}, { corner(5), stroke(), pad(6, 0, 6, 0) })
-	hover(ui.SearchBtn, ui.SearchBtn, Theme.Raised, Theme.Hover)
-	ui.MinBtn = iconButton(ui.RightWide, "–", 2)
-	ui.CloseBtn = iconButton(ui.RightWide, "×", 3)
+		BackgroundTransparency = 0, BackgroundColor3 = theme.Bg, Text = "Ctrl K", Font = theme.Mono, TextSize = 10, TextColor3 = theme.Muted, Parent = ui.SearchBtn,
+	}, { corner(5), stroke(theme.Stroke), pad(6, 0, 6, 0) })
+	hover(ui.SearchBtn, ui.SearchBtn, theme.Raised, theme.Hover)
+	ui.MinBtn = iconButton(ui.RightWide, "–", 2, theme)
+	ui.CloseBtn = iconButton(ui.RightWide, "×", 3, theme)
 
 	-- compact right side
 	ui.RightCompact = new("Frame", {
@@ -240,15 +250,15 @@ function Library:_build(opts)
 		AutomaticSize = X, BackgroundTransparency = 1, Visible = false, Parent = ui.Top,
 	}, { list(HORIZ, 6, RIGHT, VCENTER) })
 	if self.Avatar then
-		ui.MenuBtn = new("TextButton", { LayoutOrder = 10, Size = UDim2.fromOffset(32, 32), BackgroundColor3 = Theme.Raised, BackgroundTransparency = 0, Parent = ui.RightCompact }, { corner(8), stroke(Theme.Accent) })
+		ui.MenuBtn = new("TextButton", { LayoutOrder = 10, Size = UDim2.fromOffset(32, 32), BackgroundColor3 = theme.Raised, BackgroundTransparency = 0, Parent = ui.RightCompact }, { corner(8), stroke(theme.Accent) })
 		new("ImageLabel", { Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 1, -6), Image = self.Avatar, Parent = ui.MenuBtn }, { corner(6) })
 	else
-		ui.MenuBtn = iconButton(ui.RightCompact, "≡", 10)
+		ui.MenuBtn = iconButton(ui.RightCompact, "≡", 10, theme)
 	end
-	ui.CmdBtn = iconButton(ui.RightCompact, "⌘", 11)
-	ui.ExpandBtn = iconButton(ui.RightCompact, "⤢", 12)
+	ui.CmdBtn = iconButton(ui.RightCompact, "⌘", 11, theme)
+	ui.ExpandBtn = iconButton(ui.RightCompact, "⤢", 12, theme)
 
-	-- Sidebar (wide) with customizable status layout position
+	-- Sidebar
 	ui.Sidebar = new("Frame", { Position = UDim2.fromOffset(12, 72), Size = UDim2.new(0, 150, 1, -84), BackgroundTransparency = 1, Parent = win })
 	ui.SideScroll = new("ScrollingFrame", {
 		Size = UDim2.new(1, 0, 1, -30), BackgroundTransparency = 1, ScrollBarThickness = 0, AutomaticCanvasSize = Y,
@@ -265,46 +275,46 @@ function Library:_build(opts)
 
 	local status = new("Frame", { AnchorPoint = chosenPos.AnchorPoint, Position = chosenPos.Position, Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1, Parent = ui.Sidebar }, { pad(10, 0, 0, 0), list(HORIZ, 7, LEFT, VCENTER) })
 	ui.StatusDot = new("Frame", { LayoutOrder = 1, Size = UDim2.fromOffset(6, 6), BackgroundColor3 = self.StatusColor, Parent = status }, { corner(3) })
-	ui.StatusText = new("TextLabel", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 12), AutomaticSize = X, Text = self.Status, Font = Theme.Mono, TextSize = 10, TextColor3 = Theme.Muted, Parent = status })
-	ui.Divider = new("Frame", { Position = UDim2.fromOffset(172, 72), Size = UDim2.new(0, 1, 1, -84), BackgroundColor3 = Theme.Line, Parent = win })
+	ui.StatusText = new("TextLabel", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 12), AutomaticSize = X, Text = self.Status, Font = theme.Mono, TextSize = 10, TextColor3 = theme.Muted, Parent = status })
+	ui.Divider = new("Frame", { Position = UDim2.fromOffset(172, 72), Size = UDim2.new(0, 1, 1, -84), BackgroundColor3 = theme.Line, Parent = win })
 
-	-- Menu bar + footer (compact) ------------------------------------
+	-- Menu bar + footer
 	ui.MenuBar = new("Frame", { Position = UDim2.fromOffset(12, 66), Size = UDim2.new(1, -24, 0, 18), BackgroundTransparency = 1, Visible = false, Parent = win })
-	ui.MenuLink = new("TextButton", { Size = UDim2.fromOffset(0, 18), AutomaticSize = X, Text = "←  MENU", Font = Theme.Mono, TextSize = 10, TextColor3 = Theme.Muted, Parent = ui.MenuBar })
+	ui.MenuLink = new("TextButton", { Size = UDim2.fromOffset(0, 18), AutomaticSize = X, Text = "←  MENU", Font = theme.Mono, TextSize = 10, TextColor3 = theme.Muted, Parent = ui.MenuBar })
 	ui.OnWrap = new("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(0, 18), AutomaticSize = X, BackgroundTransparency = 1, Parent = ui.MenuBar }, { list(HORIZ, 6, RIGHT, VCENTER) })
-	new("Frame", { LayoutOrder = 1, Size = UDim2.fromOffset(5, 5), BackgroundColor3 = Theme.Accent, Parent = ui.OnWrap }, { corner(3) })
-	ui.OnLabel = new("TextLabel", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 12), AutomaticSize = X, Text = "", Font = Theme.Mono, TextSize = 10, TextColor3 = Theme.Muted, Parent = ui.OnWrap })
+	new("Frame", { LayoutOrder = 1, Size = UDim2.fromOffset(5, 5), BackgroundColor3 = theme.Accent, Parent = ui.OnWrap }, { corner(3) })
+	ui.OnLabel = new("TextLabel", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 12), AutomaticSize = X, Text = "", Font = theme.Mono, TextSize = 10, TextColor3 = theme.Muted, Parent = ui.OnWrap })
 
 	ui.Footer = new("Frame", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 12, 1, -10), Size = UDim2.new(1, -24, 0, 18), BackgroundTransparency = 1, Visible = false, Parent = win })
-	new("Frame", { Position = UDim2.fromOffset(0, -8), Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = Theme.Line, Parent = ui.Footer })
-	new("TextLabel", { Size = UDim2.fromScale(0.5, 1), Text = self.ToggleKey.Name:upper() .. " — HIDE", Font = Theme.Mono, TextSize = 10, TextColor3 = Theme.Muted, TextXAlignment = LEFT, Parent = ui.Footer })
-	new("TextLabel", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromScale(0.5, 1), Text = "CTRL K — SEARCH", Font = Theme.Mono, TextSize = 10, TextColor3 = Theme.Muted, TextXAlignment = RIGHT, Parent = ui.Footer })
+	new("Frame", { Position = UDim2.fromOffset(0, -8), Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = theme.Line, Parent = ui.Footer })
+	new("TextLabel", { Size = UDim2.fromScale(0.5, 1), Text = self.ToggleKey.Name:upper() .. " — HIDE", Font = theme.Mono, TextSize = 10, TextColor3 = theme.Muted, TextXAlignment = LEFT, Parent = ui.Footer })
+	new("TextLabel", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromScale(0.5, 1), Text = "CTRL K — SEARCH", Font = theme.Mono, TextSize = 10, TextColor3 = theme.Muted, TextXAlignment = RIGHT, Parent = ui.Footer })
 
-	-- Content ---------------------------------------------------------
+	-- Content
 	ui.Content = new("Frame", { BackgroundTransparency = 1, Parent = win })
 	ui.Header = new("Frame", { Size = UDim2.new(1, 0, 0, 46), BackgroundTransparency = 1, Parent = ui.Content })
-	new("Frame", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = Theme.Line, Parent = ui.Header })
-	ui.Title = new("TextLabel", { Size = UDim2.new(0, 0, 1, -2), AutomaticSize = X, RichText = true, Font = Theme.Black, TextSize = 30, Parent = ui.Header })
+	new("Frame", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = theme.Line, Parent = ui.Header })
+	ui.Title = new("TextLabel", { Size = UDim2.new(0, 0, 1, -2), AutomaticSize = X, RichText = true, Font = theme.Black, TextSize = 30, TextColor3 = theme.Text, Parent = ui.Header })
 	ui.TabsHost = new("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = X, BackgroundTransparency = 1, Parent = ui.Header })
 	ui.Body = new("CanvasGroup", { Position = UDim2.fromOffset(0, 52), Size = UDim2.new(1, 0, 1, -52), BackgroundTransparency = 1, Parent = ui.Content })
 
-	-- Menu overlay (compact) -----------------------------------------
-	ui.Menu = new("CanvasGroup", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Theme.Bg, GroupTransparency = 1, Visible = false, ZIndex = 5, Parent = ui.Content })
+	-- Menu overlay
+	ui.Menu = new("CanvasGroup", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = theme.Bg, GroupTransparency = 1, Visible = false, ZIndex = 5, Parent = ui.Content })
 	ui.MenuList = new("ScrollingFrame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ScrollBarThickness = 0, AutomaticCanvasSize = Y, CanvasSize = UDim2.new(), Parent = ui.Menu }, { list(VERT, 6), pad(2, 8, 2, 8) })
 
-	-- Search palette ---------------------------------------------------
+	-- Search palette
 	ui.Palette = new("TextButton", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 1, Visible = false, ZIndex = 20, Parent = win })
 	ui.PaletteBox = new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 80), Size = UDim2.new(0.82, 0, 0, 0), AutomaticSize = Y,
-		BackgroundColor3 = Theme.Panel, ZIndex = 21, Parent = ui.Palette,
-	}, { corner(12), stroke(), list(VERT, 0), new("UISizeConstraint", { MaxSize = Vector2.new(400, 9999) }) })
+		BackgroundColor3 = theme.Panel, ZIndex = 21, Parent = ui.Palette,
+	}, { corner(12), stroke(theme.Stroke), list(VERT, 0), new("UISizeConstraint", { MaxSize = Vector2.new(400, 9999) }) })
 	ui.SearchBox = new("TextBox", {
-		LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 44), PlaceholderText = "Search features...", PlaceholderColor3 = Theme.Dim, ClearTextOnFocus = false,
+		LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 44), PlaceholderText = "Search features...", PlaceholderColor3 = theme.Dim, ClearTextOnFocus = false,
 		TextSize = 14, TextXAlignment = LEFT, ZIndex = 22, Parent = ui.PaletteBox,
 	}, { pad(14, 0, 14, 0) })
 	ui.SearchResults = new("Frame", { LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Y, BackgroundTransparency = 1, ZIndex = 22, Parent = ui.PaletteBox }, { list(VERT, 0), pad(6, 0, 6, 6) })
 
-	-- Toast pills / notifications / mobile button (Always accessible floating toggle)
+	-- Toast pills & notifications
 	ui.Toast = new("Frame", { Position = UDim2.fromOffset(16, 64), Size = UDim2.fromOffset(440, 0), AutomaticSize = Y, BackgroundTransparency = 1, Visible = false, Parent = gui })
 	local tl = list(HORIZ, 10)
 	tl.Wraps = true
@@ -315,14 +325,22 @@ function Library:_build(opts)
 		BackgroundTransparency = 1, Parent = gui,
 	}, { list(VERT, 10, RIGHT, Enum.VerticalAlignment.Bottom) })
 
-	-- Floating Action Button (FAB) for accessibility when hidden/mobile
+	-- Floating Action Button (FAB) supporting custom icons/text
 	ui.Fab = new("TextButton", {
-		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -16, 0.5, 0), Size = UDim2.fromOffset(46, 46), BackgroundColor3 = Theme.Panel,
-		BackgroundTransparency = 0, Text = "T", Font = Theme.Black, TextSize = 22, TextColor3 = Theme.Accent, Parent = gui, ZIndex = 1000,
-	}, { corner(23), stroke(Theme.Stroke) })
+		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -16, 0.5, 0), Size = UDim2.fromOffset(46, 46), BackgroundColor3 = theme.Panel,
+		BackgroundTransparency = 0, Text = (not self.ToggleIcon or self.ToggleIcon:match("^rbxassetid://")) and (self.ToggleIcon and "" or "D") or self.ToggleIcon,
+		Font = theme.Black, TextSize = 22, TextColor3 = theme.Accent, Parent = gui, ZIndex = 1000,
+	}, { corner(23), stroke(theme.Stroke) })
+	
+	if self.ToggleIcon and self.ToggleIcon:match("^rbxassetid://") then
+		new("ImageLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(24, 24),
+			Image = self.ToggleIcon, BackgroundTransparency = 1, Parent = ui.Fab,
+		})
+	end
+
 	ui.Fab.MouseButton1Click:Connect(function() self:Toggle() end)
 
-	-- Button wiring ----------------------------------------------------
 	ui.SearchBtn.MouseButton1Click:Connect(function() self:OpenSearch() end)
 	ui.CmdBtn.MouseButton1Click:Connect(function() self:OpenSearch() end)
 	ui.MinBtn.MouseButton1Click:Connect(function() self:SetMode("Toast") end)
@@ -460,7 +478,6 @@ function Library:_connect()
 	local ui = self.UI
 	local function add(c) table.insert(self._conns, c) end
 
-	-- window dragging
 	local dragging, startMouse, startPos
 	ui.Top.InputBegan:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
@@ -477,7 +494,6 @@ function Library:_connect()
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
 	end))
 
-	-- hotkeys
 	add(UIS.InputBegan:Connect(function(i, gpe)
 		if i.UserInputType ~= Enum.UserInputType.Keyboard then return end
 		if self._listening then return end
@@ -507,6 +523,7 @@ end
 ----------------------------------------------------------------------
 function Library:AddPage(o)
 	local ui = self.UI
+	local theme = self.Theme
 	local page = setmetatable({
 		Hub = self, Name = o.Name, Group = o.Group or "GAME", Tabs = {}, Toggles = {}, Count = 0, FixedCount = o.Count,
 	}, Page)
@@ -517,8 +534,8 @@ function Library:AddPage(o)
 		g = { Order = self._groupCount * 1000, n = 0 }
 		self._groups[page.Group] = g
 		new("TextLabel", {
-			LayoutOrder = g.Order, Size = UDim2.new(1, 0, 0, 30), Text = page.Group:upper(), Font = Theme.Mono, TextSize = 10,
-			TextColor3 = Theme.Dim, TextXAlignment = LEFT, TextYAlignment = Enum.TextYAlignment.Bottom, Parent = ui.SideScroll,
+			LayoutOrder = g.Order, Size = UDim2.new(1, 0, 0, 30), Text = page.Group:upper(), Font = theme.Mono, TextSize = 10,
+			TextColor3 = theme.Dim, TextXAlignment = LEFT, TextYAlignment = Enum.TextYAlignment.Bottom, Parent = ui.SideScroll,
 		}, { pad(10, 0, 0, 6) })
 	end
 	g.n += 1
@@ -526,17 +543,17 @@ function Library:AddPage(o)
 	page.Button = new("TextButton", { LayoutOrder = g.Order + g.n, Size = UDim2.new(1, 0, 0, 32), Parent = ui.SideScroll })
 	page.NameLabel = new("TextLabel", {
 		Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -40, 1, 0), RichText = true, Text = page.Name, TextSize = 14,
-		TextColor3 = Theme.Muted, TextXAlignment = LEFT, Parent = page.Button,
+		TextColor3 = theme.Muted, TextXAlignment = LEFT, Parent = page.Button,
 	})
 	page.CountLabel = new("TextLabel", {
-		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -4, 0, 0), Size = UDim2.new(0, 28, 1, 0), Font = Theme.Mono,
-		TextSize = 11, TextColor3 = Theme.Dim, TextXAlignment = RIGHT, Parent = page.Button,
+		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -4, 0, 0), Size = UDim2.new(0, 28, 1, 0), Font = theme.Mono,
+		TextSize = 11, TextColor3 = theme.Dim, TextXAlignment = RIGHT, Parent = page.Button,
 	})
 	page.Button.MouseEnter:Connect(function()
-		if self.CurrentPage ~= page then tween(page.NameLabel, 0.15, { TextColor3 = Theme.Text }) end
+		if self.CurrentPage ~= page then tween(page.NameLabel, 0.15, { TextColor3 = theme.Text }) end
 	end)
 	page.Button.MouseLeave:Connect(function()
-		if self.CurrentPage ~= page then tween(page.NameLabel, 0.15, { TextColor3 = Theme.Muted }) end
+		if self.CurrentPage ~= page then tween(page.NameLabel, 0.15, { TextColor3 = theme.Muted }) end
 	end)
 	page.Button.MouseButton1Click:Connect(function() self:Select(page) end)
 
@@ -546,7 +563,7 @@ function Library:AddPage(o)
 	if #self.Pages <= 2 then
 		page.NavBtn = new("TextButton", {
 			LayoutOrder = #self.Pages, Size = UDim2.fromOffset(0, 32), AutomaticSize = X, Text = page.Name, TextSize = 13,
-			TextColor3 = Theme.Muted, Parent = ui.RightCompact,
+			TextColor3 = theme.Muted, Parent = ui.RightCompact,
 		}, { pad(8, 0, 8, 0) })
 		page.NavBtn.MouseButton1Click:Connect(function() self:Select(page) end)
 	end
@@ -556,9 +573,10 @@ function Library:AddPage(o)
 end
 
 function Page:_setActive(a)
+	local theme = self.Hub.Theme
 	self.NameLabel.Text = a and (self.Name .. ACCENT_DOT) or self.Name
-	tween(self.NameLabel, 0.2, { TextColor3 = a and Theme.Text or Theme.Muted })
-	if self.NavBtn then tween(self.NavBtn, 0.2, { TextColor3 = a and Theme.Text or Theme.Muted }) end
+	tween(self.NameLabel, 0.2, { TextColor3 = a and theme.Text or theme.Muted })
+	if self.NavBtn then tween(self.NavBtn, 0.2, { TextColor3 = a and theme.Text or theme.Muted }) end
 end
 
 function Page:_refreshCount()
@@ -568,18 +586,19 @@ end
 
 function Page:AddTab(name)
 	local hub = self.Hub
+	local theme = hub.Theme
 	local tab = setmetatable({ Hub = hub, Page = self, Name = name, Order = 0 }, Tab)
 	tab.Scroll = new("ScrollingFrame", {
-		Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Stroke,
+		Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ScrollBarThickness = 2, ScrollBarImageColor3 = theme.Stroke,
 		AutomaticCanvasSize = Y, CanvasSize = UDim2.new(), Visible = false, Parent = hub.UI.Body,
 	}, { list(VERT, 0), pad(0, 0, 4, 16) })
 	tab.Button = new("TextButton", {
 		LayoutOrder = #self.Tabs + 1, Size = UDim2.new(0, 0, 1, 0), AutomaticSize = X, Text = name, TextSize = 13,
-		TextColor3 = Theme.Muted, Parent = self.TabStrip,
+		TextColor3 = theme.Muted, Parent = self.TabStrip,
 	})
 	tab.Underline = new("Frame", {
 		AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 2),
-		BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1, Parent = tab.Button,
+		BackgroundColor3 = theme.Accent, BackgroundTransparency = 1, Parent = tab.Button,
 	})
 	tab.Button.MouseButton1Click:Connect(function() hub:Select(self, tab) end)
 	table.insert(self.Tabs, tab)
@@ -591,7 +610,8 @@ function Page:AddTab(name)
 end
 
 function Tab:_setActive(a)
-	tween(self.Button, 0.2, { TextColor3 = a and Theme.Text or Theme.Muted })
+	local theme = self.Hub.Theme
+	tween(self.Button, 0.2, { TextColor3 = a and theme.Text or theme.Muted })
 	tween(self.Underline, 0.2, { BackgroundTransparency = a and 0 or 1 })
 end
 
@@ -599,7 +619,13 @@ function Page:_default()
 	if not self.Tabs[1] then self:AddTab("Main") end
 	return self.Tabs[1]
 end
-for _, n in ipairs({ "AddToggle", "AddSlider", "AddSegmented", "AddDropdown", "AddKeybind", "AddAction", "AddButton", "AddSection", "AddLabel", "AddEmpty" }) do
+
+for _, n in ipairs({ 
+	"AddToggle", "AddSlider", "AddSegmented", "AddDropdown", "AddKeybind", 
+	"AddAction", "AddButton", "AddSection", "AddLabel", "AddEmpty",
+	"AddParagraph", "AddColorpicker", "AddCode", "AddDivider", "AddSpace", 
+	"AddImage", "AddHStack", "AddVStack", "AddProgressBar", "AddInput" 
+}) do
 	Page[n] = function(self, ...)
 		local t = self:_default()
 		return t[n](t, ...)
@@ -640,7 +666,7 @@ function Library:_updateOn()
 end
 
 ----------------------------------------------------------------------
--- Overlays: search palette & compact menu
+-- Overlays
 ----------------------------------------------------------------------
 function Library:OpenSearch()
 	local ui = self.UI
@@ -667,6 +693,7 @@ end
 
 function Library:_search(q)
 	local ui = self.UI
+	local theme = self.Theme
 	for _, c in ipairs(ui.SearchResults:GetChildren()) do
 		if c:IsA("TextButton") then c:Destroy() end
 	end
@@ -676,11 +703,11 @@ function Library:_search(q)
 		if q == "" or e.Name:lower():find(q, 1, true) or e.Desc:lower():find(q, 1, true) then
 			n += 1
 			if n > 6 then break end
-			local b = new("TextButton", { LayoutOrder = n, Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = Theme.Hover, BackgroundTransparency = 1, ZIndex = 23, Parent = ui.SearchResults }, { corner(8) })
-			new("TextLabel", { Position = UDim2.fromOffset(10, 0), Size = UDim2.new(0.55, 0, 1, 0), Text = e.Name, TextSize = 13, TextXAlignment = LEFT, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 24, Parent = b })
+			local b = new("TextButton", { LayoutOrder = n, Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = theme.Hover, BackgroundTransparency = 1, ZIndex = 23, Parent = ui.SearchResults }, { corner(8) })
+			new("TextLabel", { Position = UDim2.fromOffset(10, 0), Size = UDim2.new(0.55, 0, 1, 0), Text = e.Name, TextSize = 13, TextColor3 = theme.Text, TextXAlignment = LEFT, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 24, Parent = b })
 			new("TextLabel", {
-				AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 0), Size = UDim2.new(0.4, 0, 1, 0), Font = Theme.Mono, TextSize = 10,
-				TextColor3 = Theme.Dim, TextXAlignment = RIGHT, ZIndex = 24,
+				AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 0), Size = UDim2.new(0.4, 0, 1, 0), Font = theme.Mono, TextSize = 10,
+				TextColor3 = theme.Dim, TextXAlignment = RIGHT, ZIndex = 24,
 				Text = e.Page.Name:upper() .. (#e.Page.Tabs > 1 and (" / " .. e.Tab.Name:upper()) or ""), Parent = b,
 			})
 			b.MouseEnter:Connect(function() tween(b, 0.12, { BackgroundTransparency = 0 }) end)
@@ -699,6 +726,7 @@ end
 
 function Library:_openMenu()
 	local ui = self.UI
+	local theme = self.Theme
 	self:CloseSearch()
 	for _, c in ipairs(ui.MenuList:GetChildren()) do
 		if c:IsA("TextButton") then c:Destroy() end
@@ -707,14 +735,14 @@ function Library:_openMenu()
 		local active = p == self.CurrentPage
 		local b = new("TextButton", {
 			LayoutOrder = i, Size = UDim2.fromOffset(0, 46), AutomaticSize = X, Text = p.Name:upper() .. (active and ACCENT_DOT or ""), RichText = true,
-			Font = Theme.Black, TextSize = 32, TextColor3 = active and Theme.Text or Theme.Dim, TextXAlignment = LEFT, Parent = ui.MenuList,
+			Font = theme.Black, TextSize = 32, TextColor3 = active and theme.Text or theme.Dim, TextXAlignment = LEFT, Parent = ui.MenuList,
 		})
 		new("TextLabel", {
-			Position = UDim2.new(1, 6, 0, 8), Size = UDim2.fromOffset(30, 12), Font = Theme.Mono, TextSize = 10, TextXAlignment = LEFT,
-			TextColor3 = active and Theme.Accent or Theme.Dim, Text = tostring(p.FixedCount or p.Count), Parent = b,
+			Position = UDim2.new(1, 6, 0, 8), Size = UDim2.fromOffset(30, 12), Font = theme.Mono, TextSize = 10, TextXAlignment = LEFT,
+			TextColor3 = active and theme.Accent or theme.Dim, Text = tostring(p.FixedCount or p.Count), Parent = b,
 		})
-		b.MouseEnter:Connect(function() if not active then tween(b, 0.15, { TextColor3 = Theme.Muted }) end end)
-		b.MouseLeave:Connect(function() if not active then tween(b, 0.15, { TextColor3 = Theme.Dim }) end end)
+		b.MouseEnter:Connect(function() if not active then tween(b, 0.15, { TextColor3 = theme.Muted }) end end)
+		b.MouseLeave:Connect(function() if not active then tween(b, 0.15, { TextColor3 = theme.Dim }) end end)
 		b.MouseButton1Click:Connect(function() self:Select(p) end)
 	end
 	ui.Menu.Visible = true
@@ -738,28 +766,29 @@ function Library:_closeOverlays()
 end
 
 ----------------------------------------------------------------------
--- Toast pills
+-- Toast pills & notifications
 ----------------------------------------------------------------------
 function Library:_addPill(obj)
+	local theme = self.Theme
 	local pill = new("TextButton", {
-		AutomaticSize = X, Size = UDim2.fromOffset(0, 36), BackgroundColor3 = Theme.Panel, BackgroundTransparency = 0, Parent = self.UI.Toast,
-	}, { corner(18), stroke(), pad(5, 0, 6, 0), list(HORIZ, 10, LEFT, VCENTER) })
+		AutomaticSize = X, Size = UDim2.fromOffset(0, 36), BackgroundColor3 = theme.Panel, BackgroundTransparency = 0, Parent = self.UI.Toast,
+	}, { corner(18), stroke(theme.Stroke), pad(5, 0, 6, 0), list(HORIZ, 10, LEFT, VCENTER) })
 	local sc = new("UIScale", { Parent = pill })
 	local cap = new("TextLabel", {
-		LayoutOrder = 1, Size = UDim2.fromOffset(24, 24), AutomaticSize = X, BackgroundTransparency = 0, BackgroundColor3 = Theme.Raised,
-		Font = Theme.Mono, TextSize = 11, TextColor3 = Theme.Muted, Parent = pill,
-	}, { corner(7), stroke(), pad(6, 0, 6, 0) })
-	new("TextLabel", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 16), AutomaticSize = X, Text = obj.Name, TextSize = 13, Parent = pill })
-	local chip = new("Frame", { LayoutOrder = 3, Size = UDim2.fromOffset(40, 22), BackgroundColor3 = Theme.Raised, Parent = pill }, { corner(11) })
-	local ct = new("TextLabel", { Size = UDim2.fromScale(1, 1), Font = Theme.Mono, TextSize = 10, Parent = chip })
+		LayoutOrder = 1, Size = UDim2.fromOffset(24, 24), AutomaticSize = X, BackgroundTransparency = 0, BackgroundColor3 = theme.Raised,
+		Font = theme.Mono, TextSize = 11, TextColor3 = theme.Muted, Parent = pill,
+	}, { corner(7), stroke(theme.Stroke), pad(6, 0, 6, 0) })
+	new("TextLabel", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 16), AutomaticSize = X, Text = obj.Name, TextSize = 13, TextColor3 = theme.Text, Parent = pill })
+	local chip = new("Frame", { LayoutOrder = 3, Size = UDim2.fromOffset(40, 22), BackgroundColor3 = theme.Raised, Parent = pill }, { corner(11) })
+	local ct = new("TextLabel", { Size = UDim2.fromScale(1, 1), Font = theme.Mono, TextSize = 10, Parent = chip })
 
 	local p = { Frame = pill, Scale = sc }
 	function p:Update()
 		cap.Visible = obj.Key ~= nil
 		cap.Text = keyText(obj.Key)
 		ct.Text = obj.Value and "ON" or "OFF"
-		tween(chip, 0.2, { BackgroundColor3 = obj.Value and Theme.Accent or Theme.Raised })
-		tween(ct, 0.2, { TextColor3 = obj.Value and Color3.new(1, 1, 1) or Theme.Muted })
+		tween(chip, 0.2, { BackgroundColor3 = obj.Value and theme.Accent or theme.Raised })
+		tween(ct, 0.2, { TextColor3 = obj.Value and Color3.new(1, 1, 1) or theme.Muted })
 	end
 	pill.MouseButton1Click:Connect(function() obj:Set(not obj.Value) end)
 	obj.Pill = p
@@ -767,12 +796,10 @@ function Library:_addPill(obj)
 	p:Update()
 end
 
-----------------------------------------------------------------------
--- Notifications
-----------------------------------------------------------------------
 function Library:Notify(o)
 	o = o or {}
-	local color = NotifyColors[(o.Type or "info"):lower()] or Theme.Blue
+	local theme = self.Theme
+	local color = NotifyColors[(o.Type or "info"):lower()] or theme.Blue
 	self._notifOrder += 1
 	local holder = new("Frame", { LayoutOrder = self._notifOrder, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Y, BackgroundTransparency = 1, Parent = self.UI.Notifs })
 	local slide = new("Frame", { Position = UDim2.fromOffset(420, 0), Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Y, BackgroundTransparency = 1, Parent = holder })
@@ -782,15 +809,15 @@ function Library:Notify(o)
 	end
 	local card = new("Frame", {
 		Position = UDim2.fromOffset(self.Avatar and 54 or 0, 0), Size = UDim2.new(1, self.Avatar and -54 or 0, 0, 0), AutomaticSize = Y,
-		BackgroundColor3 = Theme.Panel, Parent = slide,
-	}, { corner(12), stroke(), pad(14, 11, 14, 13), list(VERT, 6) })
+		BackgroundColor3 = theme.Panel, Parent = slide,
+	}, { corner(12), stroke(theme.Stroke), pad(14, 11, 14, 13), list(VERT, 6) })
 	local head = new("Frame", { LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 14), BackgroundTransparency = 1, Parent = card })
 	new("Frame", { Position = UDim2.fromOffset(0, 4), Size = UDim2.fromOffset(6, 6), BackgroundColor3 = color, Parent = head }, { corner(3) })
-	new("TextLabel", { Position = UDim2.fromOffset(13, 0), Size = UDim2.new(0.7, 0, 1, 0), Text = (o.Title or "NOTICE"):upper(), Font = Theme.Mono, TextSize = 11, TextColor3 = color, TextXAlignment = LEFT, Parent = head })
-	new("TextLabel", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.new(0.25, 0, 1, 0), Text = "NOW", Font = Theme.Mono, TextSize = 10, TextColor3 = Theme.Dim, TextXAlignment = RIGHT, Parent = head })
+	new("TextLabel", { Position = UDim2.fromOffset(13, 0), Size = UDim2.new(0.7, 0, 1, 0), Text = (o.Title or "NOTICE"):upper(), Font = theme.Mono, TextSize = 11, TextColor3 = color, TextXAlignment = LEFT, Parent = head })
+	new("TextLabel", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.new(0.25, 0, 1, 0), Text = "NOW", Font = theme.Mono, TextSize = 10, TextColor3 = theme.Dim, TextXAlignment = RIGHT, Parent = head })
 	new("TextLabel", {
 		LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Y, Text = o.Text or "", TextSize = 14, TextWrapped = true,
-		TextXAlignment = LEFT, TextYAlignment = Enum.TextYAlignment.Top, Parent = card,
+		TextColor3 = theme.Text, TextXAlignment = LEFT, TextYAlignment = Enum.TextYAlignment.Top, Parent = card,
 	})
 
 	tween(slide, 0.5, { Position = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Back)
@@ -803,29 +830,30 @@ function Library:Notify(o)
 end
 
 ----------------------------------------------------------------------
--- Controls
+-- Controls & Requested Elements
 ----------------------------------------------------------------------
 function Tab:_row(o, h, noLine)
 	h = h or 56
+	local theme = self.Hub.Theme
 	self.Order += 1
 	local row = new("Frame", { LayoutOrder = self.Order, Size = UDim2.new(1, 0, 0, h), BackgroundTransparency = 1, Parent = self.Scroll })
 	if not noLine then
-		new("Frame", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = Theme.Line, Parent = row })
+		new("Frame", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = theme.Line, Parent = row })
 	end
 	if o.Name then
 		local tr = new("Frame", {
 			Position = UDim2.fromOffset(2, o.Desc and 11 or (h == 56 and 20 or 11)), Size = UDim2.new(1, -150, 0, 16), BackgroundTransparency = 1, Parent = row,
 		}, { list(HORIZ, 8, LEFT, VCENTER) })
-		new("TextLabel", { LayoutOrder = 1, Size = UDim2.fromOffset(0, 16), AutomaticSize = X, Text = o.Name, TextSize = 14, Parent = tr })
+		new("TextLabel", { LayoutOrder = 1, Size = UDim2.fromOffset(0, 16), AutomaticSize = X, Text = o.Name, TextSize = 14, TextColor3 = theme.Text, Parent = tr })
 		if o.Premium then
-			local b = new("Frame", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 18), AutomaticSize = X, BackgroundColor3 = Theme.AccentDark, Parent = tr }, { corner(9), pad(7, 0, 8, 0), list(HORIZ, 5, LEFT, VCENTER) })
-			new("Frame", { LayoutOrder = 1, Size = UDim2.fromOffset(5, 5), BackgroundColor3 = Theme.Accent, Parent = b }, { corner(3) })
-			new("TextLabel", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 12), AutomaticSize = X, Text = "Premium", TextSize = 10, TextColor3 = Theme.Accent, Parent = b })
+			local b = new("Frame", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 18), AutomaticSize = X, BackgroundColor3 = theme.AccentDark, Parent = tr }, { corner(9), pad(7, 0, 8, 0), list(HORIZ, 5, LEFT, VCENTER) })
+			new("Frame", { LayoutOrder = 1, Size = UDim2.fromOffset(5, 5), BackgroundColor3 = theme.Accent, Parent = b }, { corner(3) })
+			new("TextLabel", { LayoutOrder = 2, Size = UDim2.fromOffset(0, 12), AutomaticSize = X, Text = "Premium", TextSize = 10, TextColor3 = theme.Accent, Parent = b })
 		end
 	end
 	if o.Desc then
 		new("TextLabel", {
-			Position = UDim2.fromOffset(2, 31), Size = UDim2.new(1, -150, 0, 14), Text = o.Desc, TextSize = 12, TextColor3 = Theme.Muted,
+			Position = UDim2.fromOffset(2, 31), Size = UDim2.new(1, -150, 0, 14), Text = o.Desc, TextSize = 12, TextColor3 = theme.Muted,
 			TextXAlignment = LEFT, TextTruncate = Enum.TextTruncate.AtEnd, Parent = row,
 		})
 	end
@@ -854,32 +882,53 @@ end
 
 function Tab:AddSection(o)
 	if type(o) == "string" then o = { Name = o } end
+	local theme = self.Hub.Theme
 	self.Order += 1
 	local f = new("Frame", { LayoutOrder = self.Order, Size = UDim2.new(1, 0, 0, 38), BackgroundTransparency = 1, Parent = self.Scroll })
-	new("TextLabel", { Size = UDim2.fromScale(0.6, 1), Text = (o.Name or ""):upper(), Font = Theme.Mono, TextSize = 10, TextColor3 = Theme.Dim, TextXAlignment = LEFT, TextYAlignment = Enum.TextYAlignment.Bottom, Parent = f }, { pad(2, 0, 0, 8) })
+	new("TextLabel", { Size = UDim2.fromScale(0.6, 1), Text = (o.Name or ""):upper(), Font = theme.Mono, TextSize = 10, TextColor3 = theme.Dim, TextXAlignment = LEFT, TextYAlignment = Enum.TextYAlignment.Bottom, Parent = f }, { pad(2, 0, 0, 8) })
 	if o.Right then
-		new("TextLabel", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromScale(0.4, 1), Text = o.Right, Font = Theme.Mono, TextSize = 10, TextColor3 = Theme.Dim, TextXAlignment = RIGHT, TextYAlignment = Enum.TextYAlignment.Bottom, Parent = f }, { pad(0, 0, 2, 8) })
+		new("TextLabel", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromScale(0.4, 1), Text = o.Right, Font = theme.Mono, TextSize = 10, TextColor3 = theme.Dim, TextXAlignment = RIGHT, TextYAlignment = Enum.TextYAlignment.Bottom, Parent = f }, { pad(0, 0, 2, 8) })
 	end
 	return f
 end
 
 function Tab:AddLabel(text)
+	local theme = self.Hub.Theme
 	self.Order += 1
 	return new("TextLabel", {
-		LayoutOrder = self.Order, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Y, Text = text, TextSize = 12, TextColor3 = Theme.Muted,
+		LayoutOrder = self.Order, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Y, Text = text, TextSize = 12, TextColor3 = theme.Muted,
 		TextWrapped = true, TextXAlignment = LEFT, Parent = self.Scroll,
 	}, { pad(2, 10, 2, 10) })
 end
 
+function Tab:AddParagraph(o)
+	o = o or {}
+	local theme = self.Hub.Theme
+	self.Order += 1
+	local f = new("Frame", {
+		LayoutOrder = self.Order, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Y,
+		BackgroundColor3 = theme.Panel, Parent = self.Scroll,
+	}, { corner(8), stroke(theme.Stroke), pad(12, 10, 12, 10), list(VERT, 4) })
+	if o.Title then
+		new("TextLabel", { LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 16), Text = o.Title, Font = theme.Bold, TextSize = 13, TextColor3 = theme.Text, Parent = f })
+	end
+	new("TextLabel", {
+		LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Y, Text = o.Content or "", TextSize = 12, TextColor3 = theme.Muted,
+		TextWrapped = true, TextXAlignment = LEFT, Parent = f,
+	})
+	return f
+end
+
 function Tab:AddToggle(o)
 	local hub = self.Hub
+	local theme = hub.Theme
 	local row = self:_row(o, 56)
 	local locked = o.Premium and not hub.IsPremium
 	local flag = o.Flag or o.Name
 	local obj = { Value = false, Key = o.Key, Name = o.Name, Type = "Toggle" }
 
 	local track = new("TextButton", {
-		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -2, 0.5, 0), Size = UDim2.fromOffset(40, 22), BackgroundColor3 = Theme.Track,
+		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -2, 0.5, 0), Size = UDim2.fromOffset(40, 22), BackgroundColor3 = theme.Track,
 		BackgroundTransparency = locked and 0.4 or 0, Parent = row,
 	}, { corner(11) })
 	local knob = new("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 3, 0.5, 0), Size = UDim2.fromOffset(16, 16), BackgroundColor3 = Color3.fromHex("#CFCFCF"), Parent = track }, { corner(8) })
@@ -888,7 +937,7 @@ function Tab:AddToggle(o)
 		v = v and true or false
 		if locked and v then return end
 		obj.Value = v
-		tween(track, 0.2, { BackgroundColor3 = v and Theme.Accent or Theme.Track })
+		tween(track, 0.2, { BackgroundColor3 = v and theme.Accent or theme.Track })
 		tween(knob, 0.25, { Position = v and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0), BackgroundColor3 = v and Color3.new(1, 1, 1) or Color3.fromHex("#CFCFCF") }, Enum.EasingStyle.Back)
 		if flag then hub.Flags[flag] = v end
 		if obj.Pill then obj.Pill:Update() end
@@ -910,6 +959,7 @@ end
 
 function Tab:AddSlider(o)
 	local hub = self.Hub
+	local theme = hub.Theme
 	local row = self:_row(o, 80)
 	local min, max, inc = o.Min or 0, o.Max or 100, o.Increment or 1
 	local suffix = (o.Suffix or ""):upper()
@@ -918,10 +968,10 @@ function Tab:AddSlider(o)
 
 	local chip = new("TextLabel", {
 		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -2, 0, 9), Size = UDim2.fromOffset(0, 24), AutomaticSize = X,
-		BackgroundTransparency = 0, BackgroundColor3 = Theme.Raised, Font = Theme.Mono, TextSize = 12, RichText = true, Parent = row,
-	}, { corner(6), stroke(), pad(9, 0, 9, 0) })
-	local track = new("Frame", { Position = UDim2.new(0, 2, 0, 60), Size = UDim2.new(1, -4, 0, 4), BackgroundColor3 = Theme.Track, Parent = row }, { corner(2) })
-	local fill = new("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Theme.Accent, Parent = track }, { corner(2) })
+		BackgroundTransparency = 0, BackgroundColor3 = theme.Raised, Font = theme.Mono, TextSize = 12, RichText = true, TextColor3 = theme.Text, Parent = row,
+	}, { corner(6), stroke(theme.Stroke), pad(9, 0, 9, 0) })
+	local track = new("Frame", { Position = UDim2.new(0, 2, 0, 60), Size = UDim2.new(1, -4, 0, 4), BackgroundColor3 = theme.Track, Parent = row }, { corner(2) })
+	local fill = new("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = theme.Accent, Parent = track }, { corner(2) })
 	local knob = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), Size = UDim2.fromOffset(14, 14), BackgroundColor3 = Color3.new(1, 1, 1), Parent = track }, { corner(7) })
 	local hit = new("TextButton", { Position = UDim2.fromOffset(0, 48), Size = UDim2.new(1, 0, 0, 28), Parent = row })
 
@@ -968,19 +1018,20 @@ end
 
 function Tab:AddSegmented(o)
 	local hub = self.Hub
+	local theme = hub.Theme
 	local row = self:_row(o, 56)
 	local obj = { Value = o.Default or o.Options[1], Type = "Segmented" }
 	local flag = o.Flag or o.Name
 	local box = new("Frame", {
 		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -2, 0.5, 0), Size = UDim2.fromOffset(0, 32), AutomaticSize = X,
-		BackgroundColor3 = Theme.Panel, Parent = row,
-	}, { corner(8), stroke(), pad(3), list(HORIZ, 0, LEFT, VCENTER) })
+		BackgroundColor3 = theme.Panel, Parent = row,
+	}, { corner(8), stroke(theme.Stroke), pad(3), list(HORIZ, 0, LEFT, VCENTER) })
 	local btns = {}
 	local function render(animate)
 		for name, b in pairs(btns) do
 			local sel = name == obj.Value
 			local t = animate and 0.2 or 0
-			tween(b, t, { BackgroundTransparency = sel and 0 or 1, TextColor3 = sel and Color3.fromHex("#0B0B0B") or Theme.Muted })
+			tween(b, t, { BackgroundTransparency = sel and 0 or 1, TextColor3 = sel and Color3.fromHex("#0B0B0B") or theme.Muted })
 		end
 	end
 	for i, name in ipairs(o.Options) do
@@ -1006,6 +1057,7 @@ end
 
 function Tab:AddDropdown(o)
 	local hub = self.Hub
+	local theme = hub.Theme
 	local row = self:_row(o, 56)
 	local obj = { Value = o.Default, Options = o.Options or {}, Type = "Dropdown" }
 	local flag = o.Flag or o.Name
@@ -1013,19 +1065,19 @@ function Tab:AddDropdown(o)
 
 	local btn = new("TextButton", {
 		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -2, 0, 12), Size = UDim2.fromOffset(160, 32),
-		BackgroundColor3 = Theme.Raised, BackgroundTransparency = 0, Parent = row,
-	}, { corner(8), stroke() })
+		BackgroundColor3 = theme.Raised, BackgroundTransparency = 0, Parent = row,
+	}, { corner(8), stroke(theme.Stroke) })
 	local txt = new("TextLabel", { Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -34, 1, 0), TextSize = 13, TextXAlignment = LEFT, TextTruncate = Enum.TextTruncate.AtEnd, Parent = btn })
-	local arrow = new("TextLabel", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -16, 0.5, 0), Size = UDim2.fromOffset(14, 14), Text = "▾", TextSize = 13, TextColor3 = Theme.Muted, Parent = btn })
+	local arrow = new("TextLabel", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -16, 0.5, 0), Size = UDim2.fromOffset(14, 14), Text = "▾", TextSize = 13, TextColor3 = theme.Muted, Parent = btn })
 	local listF = new("ScrollingFrame", {
-		Position = UDim2.fromOffset(2, 58), Size = UDim2.new(1, -4, 0, 0), BackgroundColor3 = Theme.Panel, ScrollBarThickness = 2,
+		Position = UDim2.fromOffset(2, 58), Size = UDim2.new(1, -4, 0, 0), BackgroundColor3 = theme.Panel, ScrollBarThickness = 2,
 		AutomaticCanvasSize = Y, CanvasSize = UDim2.new(), Visible = false, Parent = row,
-	}, { corner(10), stroke(), list(VERT, 0), pad(4) })
-	hover(btn, btn, Theme.Raised, Theme.Hover)
+	}, { corner(10), stroke(theme.Stroke), list(VERT, 0), pad(4) })
+	hover(btn, btn, theme.Raised, theme.Hover)
 
 	local function renderText()
 		txt.Text = obj.Value ~= nil and tostring(obj.Value) or (o.Placeholder or "Select")
-		txt.TextColor3 = obj.Value ~= nil and Theme.Text or Theme.Muted
+		txt.TextColor3 = obj.Value ~= nil and theme.Text or theme.Muted
 	end
 	local function height() return math.min(#obj.Options, 5) * 30 + 8 end
 	local function setOpen(v)
@@ -1047,8 +1099,8 @@ function Tab:AddDropdown(o)
 		end
 		for i, name in ipairs(obj.Options) do
 			local b = new("TextButton", {
-				LayoutOrder = i, Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = Theme.Hover, Text = tostring(name), TextSize = 13,
-				TextColor3 = name == obj.Value and Theme.Text or Theme.Muted, TextXAlignment = LEFT, Parent = listF,
+				LayoutOrder = i, Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = theme.Hover, Text = tostring(name), TextSize = 13,
+				TextColor3 = name == obj.Value and theme.Text or theme.Muted, TextXAlignment = LEFT, Parent = listF,
 			}, { corner(6), pad(10, 0, 10, 0) })
 			b.BackgroundTransparency = 1
 			b.MouseEnter:Connect(function() tween(b, 0.1, { BackgroundTransparency = 0 }) end)
@@ -1082,14 +1134,15 @@ end
 
 function Tab:AddKeybind(o)
 	local hub = self.Hub
+	local theme = hub.Theme
 	local row = self:_row(o, 56)
 	local target = o.Toggle
 	local obj = { Key = o.Default or (target and target.Key), Type = "Keybind" }
 	local flag = o.Flag or o.Name
 	local cap = new("TextButton", {
 		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -2, 0.5, 0), Size = UDim2.fromOffset(28, 28), AutomaticSize = X,
-		BackgroundColor3 = Theme.Raised, BackgroundTransparency = 0, Font = Theme.Mono, TextSize = 12, TextColor3 = Theme.Muted, Parent = row,
-	}, { corner(7), stroke(), pad(8, 0, 8, 0) })
+		BackgroundColor3 = theme.Raised, BackgroundTransparency = 0, Font = theme.Mono, TextSize = 12, TextColor3 = theme.Muted, Parent = row,
+	}, { corner(7), stroke(theme.Stroke), pad(8, 0, 8, 0) })
 
 	function obj:Set(k, silent)
 		if type(k) == "string" then k = Enum.KeyCode[k] end
@@ -1112,12 +1165,12 @@ function Tab:AddKeybind(o)
 		if hub._listening then return end
 		hub._listening = true
 		cap.Text = "…"
-		tween(cap, 0.15, { TextColor3 = Theme.Accent })
+		tween(cap, 0.15, { TextColor3 = theme.Accent })
 		local conn
 		conn = UIS.InputBegan:Connect(function(i)
 			if i.UserInputType ~= Enum.UserInputType.Keyboard then return end
 			conn:Disconnect()
-			tween(cap, 0.15, { TextColor3 = Theme.Muted })
+			tween(cap, 0.15, { TextColor3 = theme.Muted })
 			obj:Set(i.KeyCode ~= Enum.KeyCode.Escape and i.KeyCode or nil)
 			task.defer(function() hub._listening = false end)
 		end)
@@ -1127,32 +1180,166 @@ function Tab:AddKeybind(o)
 	return obj
 end
 
+function Tab:AddColorpicker(o)
+	local hub = self.Hub
+	local theme = hub.Theme
+	local row = self:_row(o, 56)
+	local obj = { Value = o.Default or Color3.new(1, 1, 1), Type = "Colorpicker" }
+	local flag = o.Flag or o.Name
+
+	local preview = new("TextButton", {
+		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -2, 0.5, 0), Size = UDim2.fromOffset(36, 24),
+		BackgroundColor3 = obj.Value, Parent = row,
+	}, { corner(6), stroke(theme.Stroke) })
+
+	function obj:Set(v, silent)
+		obj.Value = v
+		preview.BackgroundColor3 = v
+		if flag then hub.Flags[flag] = v end
+		if not silent and o.Callback then task.spawn(o.Callback, v) end
+	end
+
+	preview.MouseButton1Click:Connect(function()
+		-- Simple cycling fallback or trigger callback if color picker menu isn't explicitly expanded
+		local colors = { Color3.new(1, 1, 1), Color3.new(1, 0, 0), Color3.new(0, 1, 0), Color3.new(0, 0, 1) }
+		local currentIndex = 1
+		for i, c in ipairs(colors) do
+			if c == obj.Value then currentIndex = i break end
+		end
+		obj:Set(colors[(currentIndex % #colors) + 1])
+	end)
+
+	self:_reg(o, obj, row)
+	return obj
+end
+
+function Tab:AddCode(o)
+	o = o or {}
+	local theme = self.Hub.Theme
+	self.Order += 1
+	local f = new("Frame", {
+		LayoutOrder = self.Order, Size = UDim2.new(1, 0, 0, 100), BackgroundColor3 = theme.Panel, Parent = self.Scroll,
+	}, { corner(8), stroke(theme.Stroke), pad(10) })
+	new("TextLabel", {
+		Size = UDim2.new(1, 0, 1, 0), Text = o.Content or "", Font = theme.Mono, TextSize = 11, TextColor3 = theme.Text,
+		TextXAlignment = LEFT, TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = true, Parent = f,
+	})
+	return f
+end
+
+function Tab:AddDivider()
+	local theme = self.Hub.Theme
+	self.Order += 1
+	return new("Frame", {
+		LayoutOrder = self.Order, Size = UDim2.new(1, 0, 0, 10), BackgroundTransparency = 1, Parent = self.Scroll,
+	}, { new("Frame", { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 0, 0.5, 0), Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = theme.Line }) })
+end
+
+function Tab:AddSpace(h)
+	self.Order += 1
+	return new("Frame", { LayoutOrder = self.Order, Size = UDim2.new(1, 0, 0, h or 10), BackgroundTransparency = 1, Parent = self.Scroll })
+end
+
+function Tab:AddImage(o)
+	o = o or {}
+	local theme = self.Hub.Theme
+	self.Order += 1
+	local f = new("Frame", {
+		LayoutOrder = self.Order, Size = UDim2.new(1, 0, 0, o.Height or 150), BackgroundColor3 = theme.Panel, Parent = self.Scroll,
+	}, { corner(8), stroke(theme.Stroke) })
+	new("ImageLabel", {
+		Size = UDim2.new(1, 0, 1, 0), Image = o.Image or "", BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Fit, Parent = f,
+	}, { corner(8) })
+	return f
+end
+
+function Tab:AddHStack()
+	self.Order += 1
+	return new("Frame", {
+		LayoutOrder = self.Order, Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Parent = self.Scroll,
+	}, { list(HORIZ, 8, LEFT, VCENTER) })
+end
+
+function Tab:AddVStack()
+	self.Order += 1
+	return new("Frame", {
+		LayoutOrder = self.Order, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Y, BackgroundTransparency = 1, Parent = self.Scroll,
+	}, { list(VERT, 6) })
+end
+
+function Tab:AddProgressBar(o)
+	o = o or {}
+	local theme = self.Hub.Theme
+	local row = self:_row(o, 40)
+	local obj = { Value = o.Default or 0, Type = "ProgressBar" }
+	local track = new("Frame", { Position = UDim2.new(0, 2, 0, 20), Size = UDim2.new(1, -4, 0, 6), BackgroundColor3 = theme.Track, Parent = row }, { corner(3) })
+	local fill = new("Frame", { Size = UDim2.fromScale(math.clamp(obj.Value, 0, 1), 1), BackgroundColor3 = theme.Accent, Parent = track }, { corner(3) })
+
+	function obj:Set(v)
+		obj.Value = math.clamp(v, 0, 1)
+		tween(fill, 0.15, { Size = UDim2.fromScale(obj.Value, 1) })
+	end
+
+	self:_reg(o, obj, row)
+	return obj
+end
+
+function Tab:AddInput(o)
+	local hub = self.Hub
+	local theme = hub.Theme
+	local row = self:_row(o, 56)
+	local obj = { Value = o.Default or "", Type = "Input" }
+	local flag = o.Flag or o.Name
+
+	local box = new("TextBox", {
+		AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -2, 0.5, 0), Size = UDim2.fromOffset(160, 32),
+		BackgroundColor3 = theme.Raised, Text = obj.Value, PlaceholderText = o.Placeholder or "Enter text...",
+		PlaceholderColor3 = theme.Dim, TextSize = 13, TextColor3 = theme.Text, ClearTextOnFocus = false, Parent = row,
+	}, { corner(8), stroke(theme.Stroke), pad(10, 0, 10, 0) })
+
+	box.FocusLost:Connect(function(enter)
+		obj.Value = box.Text
+		if flag then hub.Flags[flag] = box.Text end
+		if o.Callback then task.spawn(o.Callback, box.Text) end
+	end)
+
+	function obj:Set(v)
+		obj.Value = v
+		box.Text = v
+		if flag then hub.Flags[flag] = v end
+	end
+
+	self:_reg(o, obj, row)
+	return obj
+end
+
 function Tab:AddAction(o)
+	local theme = self.Hub.Theme
 	local row = self:_row(o, 56)
 	local obj = { Type = "Action" }
 	local btn
 	if o.ButtonText then
 		btn = new("TextButton", {
 			AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -2, 0.5, 0), Size = UDim2.fromOffset(0, 32), AutomaticSize = X,
-			BackgroundColor3 = Theme.Raised, BackgroundTransparency = 0, Text = o.ButtonText, TextSize = 13, Parent = row,
-		}, { corner(8), stroke(), pad(14, 0, 14, 0) })
+			BackgroundColor3 = theme.Raised, BackgroundTransparency = 0, Text = o.ButtonText, TextSize = 13, TextColor3 = theme.Text, Parent = row,
+		}, { corner(8), stroke(theme.Stroke), pad(14, 0, 14, 0) })
 	else
 		btn = new("TextButton", {
 			AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -2, 0.5, 0), Size = UDim2.fromOffset(32, 32),
-			BackgroundColor3 = Theme.Raised, BackgroundTransparency = 0, Parent = row,
+			BackgroundColor3 = theme.Raised, BackgroundTransparency = 0, Parent = row,
 		}, { corner(8) })
 		if o.Icon then
-			new("ImageLabel", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(16, 16), Image = o.Icon, ImageColor3 = Theme.Muted, Parent = btn })
+			new("ImageLabel", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(16, 16), Image = o.Icon, ImageColor3 = theme.Muted, Parent = btn })
 		else
-			local ring = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(13, 13), BackgroundTransparency = 1, Parent = btn }, { corner(7), stroke(Theme.Muted, 2) })
-			new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(3, 3), BackgroundColor3 = Theme.Muted, Parent = ring }, { corner(2) })
+			local ring = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(13, 13), BackgroundTransparency = 1, Parent = btn }, { corner(7), stroke(theme.Muted, 2) })
+			new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(3, 3), BackgroundColor3 = theme.Muted, Parent = ring }, { corner(2) })
 		end
 	end
-	hover(btn, btn, Theme.Raised, Theme.Hover)
+	hover(btn, btn, theme.Raised, theme.Hover)
 	btn.MouseButton1Click:Connect(function()
 		if self:_premiumLocked(o) then return end
-		tween(btn, 0.08, { BackgroundColor3 = Theme.Accent })
-		task.delay(0.12, function() tween(btn, 0.25, { BackgroundColor3 = Theme.Raised }) end)
+		tween(btn, 0.08, { BackgroundColor3 = theme.Accent })
+		task.delay(0.12, function() tween(btn, 0.25, { BackgroundColor3 = theme.Raised }) end)
 		if o.Callback then task.spawn(o.Callback) end
 	end)
 	return self:_reg(o, obj, row)
@@ -1160,18 +1347,19 @@ end
 Tab.AddButton = Tab.AddAction
 
 function Tab:AddEmpty(o)
+	local theme = self.Hub.Theme
 	self.Order += 1
 	local f = new("Frame", { LayoutOrder = self.Order, Size = UDim2.new(1, 0, 0, 260), BackgroundTransparency = 1, Parent = self.Scroll }, { list(VERT, 8, CENTER, VCENTER) })
-	local icon = new("Frame", { LayoutOrder = 1, Size = UDim2.fromOffset(36, 36), BackgroundColor3 = Theme.Raised, Parent = f }, { corner(10), stroke() })
-	new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(14, 11), BackgroundTransparency = 1, Parent = icon }, { corner(3), stroke(Theme.Muted, 1.5) })
-	new("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 22), Text = o.Title or "Nothing here yet", TextSize = 14, Parent = f })
-	new("TextLabel", { LayoutOrder = 3, Size = UDim2.fromOffset(300, 34), Text = o.Text or "", TextSize = 12, TextColor3 = Theme.Muted, TextWrapped = true, Parent = f })
+	local icon = new("Frame", { LayoutOrder = 1, Size = UDim2.fromOffset(36, 36), BackgroundColor3 = theme.Raised, Parent = f }, { corner(10), stroke(theme.Stroke) })
+	new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(14, 11), BackgroundTransparency = 1, Parent = icon }, { corner(3), stroke(theme.Muted, 1.5) })
+	new("TextLabel", { LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 22), Text = o.Title or "Nothing here yet", TextSize = 14, TextColor3 = theme.Text, Parent = f })
+	new("TextLabel", { LayoutOrder = 3, Size = UDim2.fromOffset(300, 34), Text = o.Text or "", TextSize = 12, TextColor3 = theme.Muted, TextWrapped = true, Parent = f })
 	if o.Button then
 		local b = new("TextButton", {
-			LayoutOrder = 4, Size = UDim2.fromOffset(0, 36), AutomaticSize = X, BackgroundColor3 = Theme.Raised, BackgroundTransparency = 0,
-			Text = o.Button, TextSize = 13, Parent = f,
-		}, { corner(10), stroke(), pad(18, 0, 18, 0) })
-		hover(b, b, Theme.Raised, Theme.Hover)
+			LayoutOrder = 4, Size = UDim2.fromOffset(0, 36), AutomaticSize = X, BackgroundColor3 = theme.Raised, BackgroundTransparency = 0,
+			Text = o.Button, TextSize = 13, TextColor3 = theme.Text, Parent = f,
+		}, { corner(10), stroke(theme.Stroke), pad(18, 0, 18, 0) })
+		hover(b, b, theme.Raised, theme.Hover)
 		b.MouseButton1Click:Connect(function() if o.Callback then task.spawn(o.Callback) end end)
 	end
 	return f
@@ -1181,7 +1369,7 @@ end
 -- Configs & cleanup
 ----------------------------------------------------------------------
 function Library:GetConfig()
-	let t = {}
+	local t = {}
 	for k, v in pairs(self.Flags) do t[k] = v end
 	return t
 end
