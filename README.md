@@ -1,6 +1,6 @@
-# DevoidUI
+# DevoidUi
 
-A sleek, modern, and lightweight Roblox Luau UI library featuring smooth animations, multiple layout modes, built-in search, and cross-platform support (Desktop & Mobile).
+A sleek, modern, and lightweight Roblox Luau UI library featuring smooth animations, multiple layout modes, built-in search, customizable themes, and cross-platform support (Desktop & Mobile).
 
 ---
 
@@ -9,7 +9,8 @@ A sleek, modern, and lightweight Roblox Luau UI library featuring smooth animati
 * **Multiple Layout Modes:** Switch seamlessly between Wide (Desktop sidebar layout) and Compact (Mobile/Navbar layout).
 * **Display Modes:** Supports Normal (full window), Toast (feature pills), and Hidden states.
 * **Built-in Search Palette:** Quickly find features using the search bar or `Ctrl + K`.
-* **Customizable Status & Indicators:** Configure custom status labels and alignment positions.
+* **Customizable Themes:** Easily personalize the library's look by passing a custom color theme table.
+* **Custom Toggle Icon:** Configure text or image assets (`rbxassetid://`) for the floating mobile accessibility button.
 * **Config Management:** Easily save and load user configurations to and from `.json` files.
 * **Cross-Platform Accessibility:** Fully responsive with touch support and a floating accessibility toggle button.
 
@@ -19,14 +20,14 @@ A sleek, modern, and lightweight Roblox Luau UI library featuring smooth animati
 
 ### Via loadstring (Exploit Environments)
 ```lua
-local Library = loadstring(readfile("TzarUI.lua"))()
+local Library = loadstring(readfile("DevoidUi.lua"))()
 
 Via ModuleScript
-Place TzarUI inside a ModuleScript in your project and require it:
-local Library = require(script.TzarUI)
+Place DevoidUi inside a ModuleScript in your project and require it:
+local Library = require(script.DevoidUi)
 
 Quick Start Guide
-local Library = loadstring(readfile("TzarUI.lua"))()
+local Library = loadstring(readfile("DevoidUi.lua"))()
 
 local Window = Library.new({
     Name = "Nexus Hub",
@@ -36,6 +37,10 @@ local Window = Library.new({
     StatusPosition = "BottomLeft",
     ToggleKey = Enum.KeyCode.RightShift,
     IsPremium = true,
+    ToggleIcon = "rbxassetid://6031068421", -- Optional: Image or text for mobile toggle
+    Theme = {
+        Accent = Color3.fromHex("#7AA2F7"), -- Optional: Custom accent color
+    }
 })
 
 local CombatPage = Window:AddPage({ Name = "Combat", Group = "Main" })
@@ -75,6 +80,8 @@ Initializes the main window.
 | StatusPosition | string | "BottomLeft" | Position of status (BottomLeft, BottomRight, TopLeft, TopRight). |
 | ToggleKey | Enum.KeyCode | RightShift | Keyboard key to show/hide the UI. |
 | IsPremium | boolean | false | Unlocks premium-restricted controls. |
+| ToggleIcon | string | nil | Custom floating mobile toggle icon (text or rbxassetid://). |
+| Theme | table | nil | Custom theme color overrides. |
 Page & Tab Methods
  * Window:AddPage(opts)
    * Creates a new page in the sidebar or menu list.
@@ -140,6 +147,45 @@ Tab:AddAction({
     Callback = function()
     end,
 })
+
+7. Input
+Tab:AddInput({
+    Name = "Input Name",
+    Desc = "Description text",
+    Default = "",
+    Placeholder = "Enter text...",
+    Callback = function(text)
+    end,
+})
+
+8. Paragraph
+Tab:AddParagraph({
+    Title = "Paragraph Title",
+    Content = "Detailed information text goes here.",
+})
+
+9. Colorpicker
+Tab:AddColorpicker({
+    Name = "Accent Color",
+    Default = Color3.new(1, 1, 1),
+    Callback = function(color)
+    end,
+})
+
+10. Code Block
+Tab:AddCode({
+    Content = "print('Hello World')",
+})
+
+11. Progress Bar
+Tab:AddProgressBar({
+    Name = "Loading Progress",
+    Default = 0.5,
+})
+
+12. Dividers & Spacing
+Tab:AddDivider()
+Tab:AddSpace(15)
 
 Notifications
 Send slide-in status notifications from anywhere:
